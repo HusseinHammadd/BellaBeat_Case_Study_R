@@ -1,0 +1,355 @@
+# BellaBeat Capstone Project
+
+![BellaBeat Logo](https://github.com/HusseinHammadd/BellaBeat_Case_Study/assets/145192252/10b9672d-c38e-4d22-8a27-45bbd8890ca9)
+
+## SUMMARY
+
+**Vision Statement:**
+
+[Bellabeat](https://bellabeat.com/), a leading high-tech company specializing in health-focused smart products, seeks to analyze the usage patterns of one of their products to gain a deeper understanding of how consumers are utilizing their smart devices. With this insight, Bellabeat aims to derive high-level recommendations on how these usage trends can be leveraged to enhance their marketing strategy.
+
+**Key Questions Addressed by This Analysis:**
+
+1.  What are some trends in smart device usage?
+2.  How could these trends apply to Bellabeat customers?
+3.  How could these trends help in influence Bellabeat marketing strategy?
+
+## PHASE 1: ASK
+
+**Business Task:**
+
+Analyze trends in consumer usage of non-Bellabeat smart devices to inform targeted marketing efforts.
+
+**Stakeholders:**
+
+-   Urška Sršen: Bellabeat’s cofounder and Chief Creative Officer
+
+-   Sando Mur: Mathematician and Bellabeat’s cofounder
+
+-   Bellabeat marketing analytics team
+
+## PHASE 2: PREPARE
+
+**Information on Data Source:**
+
+1.  This data is publicly available on Kaggle [here](https://www.kaggle.com/datasets/arashnic/fitbit/data) and stored in 18 CSV files.
+
+2.  Data collected from participants who completed a distributed survey via Amazon Mechanical Turk between March 12th, 2016, and May 12th, 2016.
+
+3.  Thirty Fitbit users meeting the eligibility criteria agreed to provide their personal tracker data.
+
+4.  The collected data includes minute-level records for physical activity, heart rate, and sleep monitoring
+
+**Major Data Limitations:**
+
+1.  The sample size is small, with only 33 distinct users contributing to the dataset. After segmentation and grouping, the sample size further diminishes, potentially limiting the significance of the findings.
+
+2.  Demographic information, such as gender, age, and health status, is unavailable. Given that Bellabeat's target audience is women, having data focused specifically on this demographic would be optimal. However, it's important to note that the absence of this demographic data may introduce a potential sampling bias, as the dataset may not accurately represent Bellabeat's target audience.
+
+3.  The data is from 2016, making it eight years old. Significant changes in lifestyle, influenced by major global events such as the pandemic, may have occurred since then. Consequently, the trends observed in the dataset may not accurately reflect current user behavior. Gathering more recent data would provide a clearer understanding of consumer insights.
+
+**Loading Packages**
+```
+library(tidyverse)
+library(dplyr)
+library(lubridate)
+library(tidyr)
+library(here)
+library(janitor)
+library(ggplot2)
+library(ggpubr)
+```
+**Importing Datasets**
+
+```{r Importing Datasets, message=FALSE, warning=FALSE}
+activity <- read_csv("Fitabase Data 4.12.16-5.12.16 RAW - Copy/dailyActivity_merged.csv")
+weight <- read_csv("Fitabase Data 4.12.16-5.12.16 RAW - Copy/weightLogInfo_merged.csv")
+daily_sleep <- read_csv("Fitabase Data 4.12.16-5.12.16 RAW - Copy/sleepDay_merged.csv")
+```
+
+Checking if the data imported correctly by using the head() function.
+
+```{r Checking the accuracy of importing}
+head(activity)
+```
+
+## PHASE 3: PROCESS
+
+**Cleaning and Formatting:**
+
+**Validating the Number of Users**
+
+```{r Validating the Number of Users}
+n_distinct(activity$Id)
+n_distinct(daily_sleep$Id)
+n_distinct(weight$Id)
+```
+
+Observing inconsistencies in the collected user data, with 24 users providing sleep monitoring data, 14 users contributing heart rate monitoring data, and 8 users supplying weight logs data.
+
+**Checking for Duplicates**
+
+```{r Checking for Duplicates}
+sum(duplicated(activity))
+sum(duplicated(daily_sleep))
+sum(duplicated(weight))
+```
+
+**Removing Duplicates and NULLs**
+
+```{r Removing Duplicates and NULLs}
+activity <- activity %>%
+  distinct() %>% 
+  drop_na()
+
+daily_sleep <- daily_sleep %>% 
+  distinct() %>% 
+  drop_na()
+
+# I'll remove the Fat column as it's not as effective in my analysis and it has many NULL values
+weight <- weight %>% 
+  select(-Fat) %>% 
+  distinct() %>% 
+  drop_na()
+```
+
+We will verify the removal of the duplicates.
+
+```{r Verifying the removal}
+sum(duplicated(daily_sleep))
+```
+
+**Cleaning and Renaming Columns**
+
+We observe that the column names are in CamelCase. Our next step is converting them to lowercase and removing any special characters if present.
+
+```{r Clean & rename the cols, message=FALSE, warning=FALSE}
+clean_names(activity)
+activity <- rename_with(activity,tolower)
+
+clean_names(daily_sleep)
+daily_sleep <- rename_with(daily_sleep, tolower)
+
+clean_names(weight)
+weight <- rename_with(weight, tolower)
+```
+
+We'll preview our datasets and get a summary of each column.
+
+```{r Previewing and Summarising}
+head(activity)
+str(activity)
+
+head(daily_sleep)
+str(daily_sleep)
+
+head(weight)
+str(weight)
+```
+
+Here, we've noticed that the date columns in all datasets are labeled as character type, which could present issues in our analysis.
+
+**Transformations:**
+
+Transforming date columns in the datasets.
+
+```{r Transforming date cols from chr, message=FALSE, warning=FALSE}
+activity <- activity %>%
+  rename(date = activitydate) %>% 
+  mutate(date = as.Date(date, format = "%m/%d/%Y"))
+
+daily_sleep <- daily_sleep %>% 
+  separate(sleepday, into = c('date','time'), sep = ' ') %>% 
+  mutate(date = as.Date(date, format = "%m/%d/%y"))
+```
+
+Making a new column for weekdays.
+
+```{r New weekdays cols}
+activity$weekday <- weekdays(activity$date)
+activity$weekday <- format(activity$date, "%a")
+
+daily_sleep$weekday <- weekdays(daily_sleep$date)
+daily_sleep$weekday <- format(daily_sleep$date, "%a")
+```
+
+## PHASE 4 & 5: ANALYSE & SHARE
+
+**Performing Summary Statistics**
+
+```{r Summary stats, echo=TRUE, message=FALSE, warning=FALSE}
+activity %>% 
+  select(totalsteps,totaldistance,calories,veryactiveminutes,fairlyactiveminutes,lightlyactiveminutes,sedentaryminutes, calories) %>% 
+  summary()
+
+daily_sleep %>% 
+  select(totalminutesasleep) %>% 
+  summary()
+
+weight %>% 
+  select(weightkg, bmi) %>% 
+  summary()
+```
+
+**We've uncovered some interesting findings from this summary:**
+
+1.  The average daily step count is 7638. Research conducted by the [NIH](https://www.nih.gov/news-events/nih-research-matters/number-steps-day-more-important-step-intensity) revealed that individuals who initially took 8,000 steps per day had a 50% lower risk of mortality compared to those taking 4,000 steps. Moreover, those who achieved 12,000 steps per day had a 65% lower risk of mortality. Additionally, higher step counts were correlated with reduced rates of death from heart disease and cancer. These benefits were observed consistently across various demographic groups, highlighting the relevance of this discovery to our case, especially considering the absence of demographic data in our dataset.
+
+2.  The average sedentary minutes are 991, indicating a need for reduction.
+
+3.  The mean total minutes asleep, averaging approximately 7 hours of sleep per day, suggests that individuals in the dataset generally obtain a sufficient amount of sleep. This aligns closely with the recommended sleep duration for adults, typically ranging from 7 to 9 hours per night. Therefore, the data indicates that, on average, people are maintaining a reasonably healthy sleeping pattern, meeting the recommended guidelines for adequate sleep duration.
+
+4.  The average BMI (25.19) is above the midpoint of the healthy BMI range (18.5 to 24.9). This implies that, on average, the people in the dataset might have BMI values indicating they are overweight or obese.
+
+**Visualisations**
+
+**1. Total Steps and Calories Burnt**
+```{r Total Steps Vs. Calories, echo=TRUE, message=FALSE, warning=FALSE}
+ggplot(data = activity, aes(x=totalsteps, 
+y= calories)) +
+    geom_point() +
+    geom_smooth() +
+labs(title = "Total Steps Vs. Calories")
+```
+![Ttlstpsvsclrs](https://github.com/HusseinHammadd/BellaBeat_Case_Study/assets/145192252/f36c6d41-72d9-45b8-85cd-150ba64ef991)
+
+I've noticed a clear positive correlation between total steps and calories burned. This finding isn't surprising, as it's intuitive that the more we move, the more calories we tend to burn.
+
+**2. Sleep Duration Across Weekdays**
+
+To comprehend the trends in users' sleeping patterns, the data will be summarized on a weekday level. This approach enables the observation of how users' sleeping behaviors fluctuate across the week.
+
+```{r Summarising needed data for the vis}
+daily_sleep$weekday <- ordered(daily_sleep$weekday, levels = c("Mon","Tue","Wed","Thu","Fri","Sat","Sun"))
+mins_asleep_per_weekday <- daily_sleep %>% 
+  group_by(weekday) %>% 
+  summarise(dailysleep = mean(totalminutesasleep))
+```
+
+Plot time!
+
+```{r Sleep Duration Across Weekdays, echo=TRUE}
+ggarrange(ggplot(mins_asleep_per_weekday, aes(weekday, dailysleep)) +
+                           geom_col(fill = "#004466") +
+                           geom_hline(yintercept = 480) +
+                           labs(title = "Minutes asleep per weekday", x= "", y = "") +
+                           theme(axis.text.x = element_text(angle = 45,vjust = 0.5, hjust = 1))
+           )
+```
+![minsaslpwkdys](https://github.com/HusseinHammadd/BellaBeat_Case_Study/assets/145192252/977c80cc-6d90-4371-828a-ff75e70a77c6)
+
+An observation reveals that, on average, users tend to sleep the most on Friday nights, followed by a decrease in sleep duration on Saturdays and a notable decrease on Sundays. However, sleep duration improves again on Mondays, only to decline to the lowest point of the week on Tuesdays.
+
+**3. Weight and Total Steps**
+
+To enhance our visualization of the relationship, it's essential to classify each user based on their BMI.
+
+```{r Merging and Categotising}
+# First, we need to merge both tables
+weight_activity_merged <- merge(weight,activity,by = c("id"))
+
+#Time for categorising!
+weight_activity_merged <- weight_activity_merged %>%
+       mutate(user_type = case_when(
+             bmi < 18.5 ~ "Underweight",
+             bmi >= 18.5 & bmi < 25 ~ "Normal weight",
+             bmi >= 25 & bmi < 30 ~ "Overweight",
+             bmi >= 30 ~ "Obese",
+             TRUE ~ "Unknown"  # Handles any unexpected values
+         ))
+```
+
+Some summarising need to be made.
+
+```{r}
+summarydata <- weight_activity_merged %>%
+  group_by(user_type) %>%
+  summarize(total_steps = mean(totalsteps))
+```
+
+Charting time!
+
+```{r Total Steps by Body Type, echo=TRUE}
+summarydata$user_type <- factor(summarydata$user_type,levels = c("Obese", "Normal weight", "Overweight"))
+custom_color <- "#004466"
+ggplot(summarydata, aes(x = user_type, y = total_steps)) +
+  geom_bar(stat = "identity", fill = custom_color, color = "black") +
+  labs(title = "Total Steps by Body Type",
+       x = " ",
+       y = " ") +
+  theme_minimal()
+```
+![ttlstpsvsbddtype1](https://github.com/HusseinHammadd/BellaBeat_Case_Study/assets/145192252/d3b2289e-62ef-4175-bd8e-c0f3fafb3826)
+
+We observe several interesting points:
+
+1.  It may appear unexpected that overweight individuals have recorded a higher step count compared to those of normal weight. This could be attributed to several factors:
+
+-   Our initial analysis revealed that the minimum recorded BMI is 21.45. Consequently, we lack data for individuals categorized as having a normal weight.
+
+-   Furthermore, the mean BMI, as per our initial summary statistics, is 25.19. Therefore, it's understandable that overweight individuals have a higher step count compared to those with a normal weight.
+
+2.  Additionally, our initial analysis indicated that there are only 8 distinct values recorded for weight data, despite having data for 33 users. This discrepancy suggests that our dataset may not be fully representative of reality and warrants caution when drawing conclusions."
+
+**4. Activity Intensities**
+
+Initially, our objective is to determine the proportion of minutes attributed to each intensity level.
+
+```{r Calculate total minutes and percentages }
+# Calculate total minutes and percentages 
+percentage <- activity %>%
+  summarise(
+    total_very_active = sum(veryactiveminutes),
+    total_fairly_active = sum(fairlyactiveminutes),
+    total_lightly_active = sum(lightlyactiveminutes),
+    total_sedentary = sum(sedentaryminutes),
+    total_all = sum(veryactiveminutes, fairlyactiveminutes, lightlyactiveminutes, sedentaryminutes),
+    very_active = total_very_active / total_all * 100,
+    fairly_active = total_fairly_active / total_all * 100,
+    lightly_active = total_lightly_active / total_all * 100,
+    sedentary = total_sedentary / total_all * 100
+  )
+
+```
+
+Afterward, we can proceed with confidence to create the plot!
+
+```{r Percentage of Activity Intensities, echo=TRUE}
+pie_data <- data.frame(
+  intensity = c("Very Active", "Fairly Active", "Lightly Active", "Sedentary"),
+  percentage = unlist(percentage %>% select(very_active, fairly_active, lightly_active, sedentary))
+)
+
+ggplot(pie_data, aes(x = "", y = percentage, fill = intensity)) +
+  geom_bar(stat = "identity", width = 1) +
+  coord_polar("y", start = 0) +
+  labs(title = "Percentage of Activity Intensities",
+       fill = "Activity Intensity",
+       x = NULL,
+       y = NULL) +
+  theme_void() +
+  theme(legend.position = "right")
+```
+![perofactintns](https://github.com/HusseinHammadd/BellaBeat_Case_Study/assets/145192252/e088705e-27e0-48b4-a894-902dc491181d)
+
+Observing the the pie chart, it becomes evident that users predominantly engage in sedentary activities. Furthermore, there appears to be a negative correlation between activity intensity and the time spent on it. Specifically, higher intensity activities correspond to less time spent engaging in those activities.
+
+## PHASE 6: ACT
+
+In light of our insightful analysis, I'd like to offer some strategic recommendations:
+
+1.  Motivate users to increase their daily step count by implementing a reward system. For instance, users could earn bronze, silver, and gold badges for consistently reaching step goals over 30, 60, and 90 days respectively.
+
+2.  Address sedentary behavior by monitoring user moods and providing tailored exercise programs. By incorporating exercise routines into the app, users can reduce sedentary time significantly.
+
+3.  Help users establish healthier sleep patterns by offering bedtime reminders and encouraging them to go to bed earlier. Notifications sent 30 minutes before bedtime can assist users in adhering to the recommended 7-9 hours of sleep per night.
+
+4.  In addition to physical activity, consider integrating dieting plans into the app to provide comprehensive weight management solutions.
+
+5.  Enhance user engagement and motivation by offering personalized progress reports and dashboards on a weekly and monthly basis. These reports can highlight achievements and offer suggestions for improvement to keep users on track.
+
+6.  In light of these enhancements, a reevaluation of pricing plans is warranted to ensure alignment with the added value and benefits offered to users.
+
+----
+- Check this case study on Kaggle [here](https://www.kaggle.com/husseinhammad/bellabeat-case-study)
+- My LinkedIn profile [here](https://www.linkedin.com/in/hussein-hammad/)
